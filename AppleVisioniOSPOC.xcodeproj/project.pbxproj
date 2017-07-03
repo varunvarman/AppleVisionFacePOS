@@ -13,6 +13,7 @@
 		8BB6B8571F027AA500E02BB9 /* AppleVisioniOSPOC.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = 8BB6B8551F027AA500E02BB9 /* AppleVisioniOSPOC.xcdatamodeld */; };
 		8BB6B8591F027AA500E02BB9 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8BB6B8581F027AA500E02BB9 /* Assets.xcassets */; };
 		8BB6B85C1F027AA500E02BB9 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 8BB6B85A1F027AA500E02BB9 /* LaunchScreen.storyboard */; };
+		8BB6B8641F027C5C00E02BB9 /* CameraCapturePipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BB6B8631F027C5C00E02BB9 /* CameraCapturePipeline.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -24,6 +25,7 @@
 		8BB6B8581F027AA500E02BB9 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		8BB6B85B1F027AA500E02BB9 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		8BB6B85D1F027AA500E02BB9 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		8BB6B8631F027C5C00E02BB9 /* CameraCapturePipeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraCapturePipeline.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -56,8 +58,9 @@
 		8BB6B84D1F027AA500E02BB9 /* AppleVisioniOSPOC */ = {
 			isa = PBXGroup;
 			children = (
+				8BB6B8661F027CAA00E02BB9 /* Services */,
+				8BB6B8651F027C8800E02BB9 /* ViewControllers */,
 				8BB6B84E1F027AA500E02BB9 /* AppDelegate.swift */,
-				8BB6B8501F027AA500E02BB9 /* ViewController.swift */,
 				8BB6B8521F027AA500E02BB9 /* Main.storyboard */,
 				8BB6B8581F027AA500E02BB9 /* Assets.xcassets */,
 				8BB6B85A1F027AA500E02BB9 /* LaunchScreen.storyboard */,
@@ -65,6 +68,24 @@
 				8BB6B8551F027AA500E02BB9 /* AppleVisioniOSPOC.xcdatamodeld */,
 			);
 			path = AppleVisioniOSPOC;
+			sourceTree = "<group>";
+		};
+		8BB6B8651F027C8800E02BB9 /* ViewControllers */ = {
+			isa = PBXGroup;
+			children = (
+				8BB6B8501F027AA500E02BB9 /* ViewController.swift */,
+			);
+			name = ViewControllers;
+			path = "New Group";
+			sourceTree = "<group>";
+		};
+		8BB6B8661F027CAA00E02BB9 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				8BB6B8631F027C5C00E02BB9 /* CameraCapturePipeline.swift */,
+			);
+			name = Services;
+			path = "New Group1";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -139,6 +160,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				8BB6B8511F027AA500E02BB9 /* ViewController.swift in Sources */,
+				8BB6B8641F027C5C00E02BB9 /* CameraCapturePipeline.swift in Sources */,
 				8BB6B84F1F027AA500E02BB9 /* AppDelegate.swift in Sources */,
 				8BB6B8571F027AA500E02BB9 /* AppleVisioniOSPOC.xcdatamodeld in Sources */,
 			);
