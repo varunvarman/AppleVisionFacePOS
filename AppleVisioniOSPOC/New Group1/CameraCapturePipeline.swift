@@ -15,14 +15,15 @@ protocol CameraCapturePipelineDelegate {
     func cameraCapture(Pipeline pipeline: CameraCapturePipeline, didFailWith error: NSError)
     func cameraCapture(Pipeline pipeline: CameraCapturePipeline, didDetectFaces faceDataset: [[String: Any?]])
     func cameraCapture(Pipeline pipeline: CameraCapturePipeline, didUpdateFaces faceDataset: [[String: Any?]])
+    func stoppedDetectingFaces(For pipeline: CameraCapturePipeline)
 }
 
 class CameraCapturePipeline: NSObject {
     
     // MARK: Public API's
     var delegate: CameraCapturePipelineDelegate?
-    var track: Bool = false
     fileprivate (set) var detectedFaceDataset: [[String: Any?]] = []
+    fileprivate (set) var frameRate: Int? = nil
     
     // MARK: Private API's
     fileprivate var device: AVCaptureDevice?
@@ -39,8 +40,17 @@ class CameraCapturePipeline: NSObject {
     }()
     fileprivate var detectedFaceCount: Int = 0 {
         didSet {
-            if self.detectedFaceCount != oldValue {
+            if self.detectedFaceCount != 0 {
                 self.shoulStartTracking = false
+            } else if self.detectedFaceCount == 0 && oldValue != 0 {
+                self.detectedFaceDataset = []
+                self.frameRate = nil
+                DispatchQueue.main.async {
+                    if let delegate = self.delegate {
+                        // fire delegate, since detected faces count is now zero.
+                        delegate.stoppedDetectingFaces(For: self)
+                    }
+                }
             }
         }
     }
@@ -51,18 +61,28 @@ class CameraCapturePipeline: NSObject {
     }()
     
     // MARK: Initialization
-    init(withDelegate delegate: UIViewController) {
-        
+    init(withDelegate delegate: CameraCapturePipelineDelegate) {
+        super.init()
+        self.delegate = delegate
+        self.setupCaptureSession()
     }
     
     func openCameraPipeline() {
         // start session
         self.setupCaptureSession()
-        guard let session = captureSession else{
+        guard let session = captureSession else {
             // session optional is nil, propagete error
             return
         }
         session.startRunning()
+    }
+    
+    func closeCapturePipeline() {
+        guard let session = captureSession else {
+            // session optional is nil, propagete error
+            return
+        }
+        session.stopRunning()
     }
     
     fileprivate func setupCaptureSession() {
@@ -98,6 +118,12 @@ class CameraCapturePipeline: NSObject {
             }
         } catch {
             // handle error, could not intialize AVACptureInput
+            let err: NSError = NSError(domain: "\(String(describing: Bundle.main.bundleIdentifier))_Error_1001", code: 1001, userInfo: ["developerInfo":"Error code 1001, could not initialize AVCaptureInput"])
+            if let delegate = self.delegate {
+                DispatchQueue.main.async {
+                    delegate.cameraCapture(Pipeline: self, didFailWith: err)
+                }
+            }
             return
         }
         
@@ -129,7 +155,7 @@ class CameraCapturePipeline: NSObject {
             framePerSecond = 15
         }
         self.captureSession?.sessionPreset = sessionVideoPreset
-        
+        self.frameRate = framePerSecond
         do {
             if ((try self.device?.lockForConfiguration()) != nil) == true {
                 let frameTime = CMTimeMake(Int64( framePerSecond ), Int32( 1 ))
@@ -139,6 +165,12 @@ class CameraCapturePipeline: NSObject {
             }
         } catch {
             // some error occoured, during device configuration lock and unlock
+            let err: NSError = NSError(domain: "\(String(describing: Bundle.main.bundleIdentifier))_Error_1002", code: 1002, userInfo: ["developerInfo":"Error code 1002, Error occoured during AVDevice locking/unlocking for configuration."])
+            if let delegate = self.delegate {
+                DispatchQueue.main.async {
+                    delegate.cameraCapture(Pipeline: self, didFailWith: err)
+                }
+            }
             return
         }
         
@@ -176,7 +208,10 @@ class CameraCapturePipeline: NSObject {
         return arrToReturn
     }
     
-    fileprivate func createDataset(from observation: VNFaceObservation) -> [String: Any?] {
+    fileprivate func createDataset(from observation: VNFaceObservation) -> [String: Any?]? {
+        guard let _ = observation.landmarks else {
+            return nil
+        }
         let viewSize = UIScreen.main.bounds.size
         let uuid = observation.uuid.uuidString
         let faceBoundingBox = observation.boundingBox.scale(to: viewSize)
@@ -192,51 +227,31 @@ class CameraCapturePipeline: NSObject {
     }
     
     func didDetectFacesFor(request req: VNRequest, error err: Error?) {
-        guard let observations = req.results as? [VNFaceObservation], observations.count != 0 else {
+        guard let observations = req.results as? [VNFaceObservation] else {
             return
         }
         self.detectedFaceCount = observations.count
         
-        if self.shoulStartTracking == false && self.detectedFaceCount > 0 && track == true {
+        if self.shoulStartTracking == false && self.detectedFaceCount > 0 {
             // get all the observation Objects that have not formed the tracking requests in 'faceTrackingRequests'
-            let filteredObservations = observations.filter({ (obs) -> Bool in
-                var contains: Bool = false
-                contains = self.faceTrackingRequests.contains(where: { (trackObj) -> Bool in
-                    var containsObs: Bool = false
-                    for result in trackObj.results as! [VNFaceObservation] {
-                        let biggerRect = CGRect(x: result.boundingBox.origin.x - 20.0, y: result.boundingBox.origin.y - 20.0, width: result.boundingBox.size.width + 40.0, height: result.boundingBox.size.height + 40.0)
-                        if biggerRect.contains(obs.boundingBox) == true {
-                            containsObs = true
-                        }
-                    }
-                    return containsObs
-                })
-                return !contains
-            })
-            
-            for filteredObservation in filteredObservations {
-                let newTrackRequest = VNTrackObjectRequest(detectedObjectObservation: filteredObservation, completionHandler: self.didTrackFacesFor )
-                self.faceTrackingRequests.append(newTrackRequest)
-                
-                // make dataStructure and fire delegate method to notify viewController of detectedFaceFeatures
-                let faceLandmarkDataset = self.createDataset(from: filteredObservation)
-                self.detectedFaceDataset.append(faceLandmarkDataset)
-            }
-            
+            var wasAnUpdate: Bool = false
             for observation in observations {
                 if let foundIndex = self.detectedFaceDataset.index(where: { (obs) -> Bool in
                     let boundingBox = obs["faceRectangle"] as! CGRect
-                    let biggerBox: CGRect = CGRect(x: boundingBox.origin.x - 20.0, y: boundingBox.origin.y - 20.0, width: boundingBox.size.width + 40.0, height: boundingBox.size.height + 20.0)
+                    let biggerBox: CGRect = CGRect(x: boundingBox.origin.x - 20.0, y: boundingBox.origin.y - 20.0, width: boundingBox.size.width + 40.0, height: boundingBox.size.height + 40.0)
                     return biggerBox.contains(observation.boundingBox)
                 }) {
                     // matching uuid index found, remove and replace
-                    let obs = self.createDataset(from: observation)
-                    self.detectedFaceDataset.remove(at: foundIndex)
-                    self.detectedFaceDataset.insert(obs, at: foundIndex)
+                    if let obs = self.createDataset(from: observation) {
+                        self.detectedFaceDataset.remove(at: foundIndex)
+                        self.detectedFaceDataset.insert(obs, at: foundIndex)
+                        wasAnUpdate = true
+                    }
                 } else {
                     // matching uuid index not found, create dataSet and add to array
-                    let newObs = self.createDataset(from: observation)
-                    self.detectedFaceDataset.append(newObs)
+                    if let newObs = self.createDataset(from: observation) {
+                        self.detectedFaceDataset.append(newObs)
+                    }
                 }
             }
             
@@ -244,7 +259,11 @@ class CameraCapturePipeline: NSObject {
             if self.detectedFaceDataset.isEmpty == false {
                 DispatchQueue.main.async {
                     if let delegate = self.delegate {
-                        delegate.cameraCapture(Pipeline: self, didDetectFaces: self.detectedFaceDataset)
+                        if !wasAnUpdate {
+                            delegate.cameraCapture(Pipeline: self, didDetectFaces: self.detectedFaceDataset)
+                        } else {
+                            delegate.cameraCapture(Pipeline: self, didUpdateFaces: self.detectedFaceDataset)
+                        }
                     }
                 }
             }
@@ -262,13 +281,15 @@ class CameraCapturePipeline: NSObject {
                 return String(describing: obs["uuid"]) == uuid
             }) {
                 // matching uuid index found, remove and replace
-                let obs = self.createDataset(from: observation)
-                self.detectedFaceDataset.remove(at: foundIndex)
-                self.detectedFaceDataset.insert(obs, at: foundIndex)
+                if let obs = self.createDataset(from: observation) {
+                    self.detectedFaceDataset.remove(at: foundIndex)
+                    self.detectedFaceDataset.insert(obs, at: foundIndex)
+                }
             } else {
                 // matching uuid index not found, create dataSet and add to array
-                let newObs = self.createDataset(from: observation)
-                self.detectedFaceDataset.append(newObs)
+                if let newObs = self.createDataset(from: observation) {
+                    self.detectedFaceDataset.append(newObs)
+                }
             }
         }
         if self.detectedFaceDataset.isEmpty == false {
@@ -293,21 +314,21 @@ extension CameraCapturePipeline: AVCaptureVideoDataOutputSampleBufferDelegate {
             requestOptions = [.cameraIntrinsics:cameraIntrinsicData]
         }
         
-        let videoExifOrientation = self.captureVideoConnection?.videoOrientation
+        // since we're using the front camera, only, expected to use front camera
+        let videoExifOrientation = Int32( UIImageOrientation.leftMirrored.rawValue )
         
-        let imageRequestHandler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: Int32(1), options: requestOptions)
+        let imageRequestHandler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: videoExifOrientation, options: requestOptions)
         do {
             try imageRequestHandler.perform([self.faceLandmarkRequest])
         } catch {
             // handle error if any
-        }
-        
-        if shoulStartTracking == true {
-            do {
-                try self.sequenceRequestHandler.perform(self.faceTrackingRequests, on: pixelBuffer, orientation: Int32(1))
-            } catch {
-                // hndle error
+            let err: NSError = NSError(domain: "\(String(describing: Bundle.main.bundleIdentifier))_Error_1010", code: 1010, userInfo: ["developerInfo":"Error code 1010, some error occoured during performing of request by image request handler"])
+            if let delegate = self.delegate {
+                DispatchQueue.main.async {
+                    delegate.cameraCapture(Pipeline: self, didFailWith: err)
+                }
             }
+            return
         }
     }
 }
