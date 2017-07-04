@@ -145,6 +145,10 @@ class ViewController: UIViewController {
 }
 
 extension ViewController: CameraCapturePipelineDelegate {
+    func getViewForCapturePipeline() -> UIView {
+        return self.view
+    }
+    
     func cameraCapture(Pipeline pipeline: CameraCapturePipeline, didDetectFaces faceDataset: [[String : Any?]]) {
         if self.faceDatasetArray.isEmpty {
             self.faceDatasetArray = faceDataset
@@ -185,5 +189,7 @@ extension ViewController: CameraCapturePipelineDelegate {
             }
         }
     }
+    
+    
 }
 

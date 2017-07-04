@@ -16,6 +16,7 @@ protocol CameraCapturePipelineDelegate {
     func cameraCapture(Pipeline pipeline: CameraCapturePipeline, didDetectFaces faceDataset: [[String: Any?]])
     func cameraCapture(Pipeline pipeline: CameraCapturePipeline, didUpdateFaces faceDataset: [[String: Any?]])
     func stoppedDetectingFaces(For pipeline: CameraCapturePipeline)
+    func getViewForCapturePipeline() -> UIView
 }
 
 class CameraCapturePipeline: NSObject {
@@ -180,9 +181,10 @@ class CameraCapturePipeline: NSObject {
             return
         }
         self.previewLayer = AVCaptureVideoPreviewLayer(session: self.captureSession!)
-        self.previewLayer?.frame = ((delegatee as? UIViewController)?.view.frame)!
         
-        (delegatee as? UIViewController)?.view.layer.addSublayer(self.previewLayer!)
+        let delView = delegatee.getViewForCapturePipeline()
+        self.previewLayer?.frame = delView.frame
+        delView.layer.addSublayer(self.previewLayer!)
     }
     
     // MARK: Utility Methods
